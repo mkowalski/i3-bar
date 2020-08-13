@@ -11,8 +11,11 @@ import (
 	"barista.run/base/click"
 	"barista.run/base/watchers/netlink"
 	"barista.run/colors"
+	"barista.run/format"
 	"barista.run/modules/battery"
 	"barista.run/modules/bluetooth"
+	"barista.run/modules/cpuload"
+	"barista.run/modules/meminfo"
 	"barista.run/modules/netinfo"
 	"barista.run/modules/volume"
 	"barista.run/modules/wlan"
@@ -20,6 +23,7 @@ import (
 	"barista.run/pango"
 	"barista.run/pango/icons/material"
 	"github.com/glebtv/custom_barista/kbdlayout"
+	"github.com/martinlindhe/unit"
 )
 
 var spacer = pango.Text("   ").XXSmall()
@@ -40,7 +44,7 @@ func init() {
 		"dim-icon": "#777",
 	})
 
-	material.Load(home(".icons/material-design-icons"))
+	material.Load(home("git/github.com/material-design-icons"))
 }
 
 // Clock ...
@@ -49,7 +53,7 @@ func Clock(now time.Time) bar.Output {
 		pango.Icon("material-today"),
 		pango.Icon("material-access-time"),
 		now.Format("Mon 2 Jan "),
-		now.Format("15:04:05"),
+		now.Format("15:04"),
 	).OnClick(click.RunLeft("gsimplecal")).Color(colors.Scheme("dim-icon"))
 }
 
@@ -59,15 +63,12 @@ func Bat(i battery.Info) bar.Output {
 		return outputs.Textf("%v", i.Status).Urgent(true)
 	}
 
-	disp := pango.Textf("Bat: %d%% (%2.1f Watt)", i.RemainingPct(), i.Power)
-	iconName := "material-battery-std"
-	icon := pango.Icon(iconName).Color(colors.Scheme("dim-icon"))
+	disp := pango.Textf("Bat: %d%%", i.RemainingPct())
+	icon := pango.Icon("material-battery-std")
 	cl := colors.Scheme("dim-icon")
 
 	if i.Status == battery.Charging {
-		disp = pango.Textf("Bat: %d%%", i.RemainingPct())
-		iconName = "material-battery-charging-full"
-		icon = pango.Icon(iconName)
+		icon = pango.Icon("material-battery-charging-full")
 	}
 
 	var urgent bool
@@ -86,56 +87,49 @@ func Bat(i battery.Info) bar.Output {
 func Snd(v volume.Volume) bar.Output {
 	cl := colors.Scheme("dim-icon")
 	ic := pango.Icon("material-volume-down")
-	pct := v.Pct()
-	if pct > 66 {
+
+	if v.Pct() > 66 {
 		ic = pango.Icon("material-volume-up")
-		cl = colors.Scheme("degraded")
+		// cl = colors.Scheme("degraded")
 	}
-	if v.Mute {
+	if v.Mute || v.Pct() == 0 {
 		ic = pango.Icon("material-volume-off")
-		cl = colors.Scheme("dim-icon")
+		// cl = colors.Scheme("dim-icon")
 	}
 
-	return outputs.
-		Pango(ic, spacer, pango.Textf("%2d%%", pct)).Color(cl)
+	return outputs.Pango(ic, spacer, pango.Textf("%2d%%", v.Pct())).Color(cl)
 }
 
 // Brightness ...
 func Brightness(i int) bar.Output {
 	cl := colors.Scheme("dim-icon")
 	ic := pango.Icon("material-brightness-medium")
+
 	if i > 50 {
-		cl = colors.Scheme("degraded")
 		ic = pango.Icon("material-brightness-high")
 	}
-	return outputs.
-		Pango(ic, spacer, fmt.Sprintf("%2.0d%%", i)).Color(cl)
+	return outputs.Pango(ic, spacer, fmt.Sprintf("%2.0d%%", i)).Color(cl)
 }
 
 // Layout ...
 func Layout(m *kbdlayout.Module, i kbdlayout.Info) bar.Output {
 	la := strings.ToLower(i.Layout)
+	ic := pango.Icon("material-language")
 	c := colors.Scheme("dim-icon")
 	if la != "us" {
 		c = colors.Scheme("degraded")
 	}
-	return outputs.Pango(
-		pango.Icon("material-language"), spacer,
-		fmt.Sprintf("%s", la),
-	).OnClick(m.Click).Color(c)
+	return outputs.Pango(ic, spacer, fmt.Sprintf("%s", la)).OnClick(m.Click).Color(c)
 }
 
 // Net ...
 func Net(s netinfo.State) bar.Output {
-	disp := pango.Text("no network")
-	cl := colors.Scheme("bad")
+	cl := colors.Scheme("dim-icon")
 	ic := pango.Icon("material-settings-ethernet")
 
 	if len(s.IPs) >= 1 {
-		disp = pango.Textf(fmt.Sprintf("%s:%v", s.Name, s.IPs[0]))
-		cl = colors.Scheme("dim-icon")
-		return outputs.
-			Pango(ic, spacer, disp).Color(cl)
+		disp := pango.Textf(fmt.Sprintf("%s:%v", s.Name, s.IPs[0]))
+		return outputs.Pango(ic, spacer, disp).Color(cl)
 	}
 	return nil
 }
@@ -157,32 +151,23 @@ func WLAN(i wlan.Info) bar.Output {
 	cl := colors.Scheme("dim-icon")
 	ic := pango.Icon("material-signal-wifi-4-bar")
 
-	switch {
-	case i.State == netlink.Down:
-		disp = pango.Textf("down")
-		cl = colors.Scheme("degraded")
-	case !i.Enabled():
+	if i.State == netlink.Down || !i.Enabled() || i.Connecting() || !i.Connected() {
 		return nil
-	case i.Connecting():
-		return outputs.Text("W: ...")
-	case !i.Connected():
-		return outputs.Text("W: down").Color(colors.Scheme("degraded"))
 	}
 
-	return outputs.
-		Pango(ic, spacer, disp).Color(cl)
+	return outputs.Pango(ic, spacer, disp).Color(cl)
 }
 
 // Bluetooth ...
 func Bluetooth(s bluetooth.AdapterInfo) bar.Output {
-	cl := colors.Scheme("degraded")
+	cl := colors.Scheme("dim-icon")
 	ic := pango.Icon("material-bluetooth")
 
 	if !s.Powered {
-		cl = colors.Scheme("dim-icon")
+		return nil
+		// cl = colors.Scheme("dim-icon")
 	}
-	return outputs.
-		Pango(ic).Color(cl)
+	return outputs.Pango(ic).Color(cl)
 }
 
 // Blue ...
@@ -194,6 +179,49 @@ func Blue(i bluetooth.DeviceInfo) bar.Output {
 	if !i.Connected {
 		return nil
 	}
+	return outputs.Pango(ic, spacer, dp).Color(cl)
+}
+
+// Mem ...
+func Mem(i meminfo.Info) bar.Output {
+	cl := colors.Scheme("dim-icon")
+	ic := pango.Icon("material-memory")
+	dp := pango.Textf(`%s/%s`,
+		format.IBytesize(i["MemTotal"]-i["MemAvailable"]),
+		format.IBytesize(i["MemTotal"]))
+
+	// switch {
+	// case i["MemAvailable"] < 15000000.0:
+	// 	cl = colors.Scheme("degraded")
+	// case i["MemAvailable"] < 0.33:
+	// 	cl = colors.Scheme("bad")
+	// }
+	return outputs.Pango(ic, spacer, dp).Color(cl)
+}
+
+// Cpu ...
+func Cpu(i cpuload.LoadAvg) bar.Output {
+	dp := pango.Textf(fmt.Sprintf("%0.2f", i.Min1()))
+	ic := pango.Icon("material-memory")
+	cl := colors.Scheme("dim-icon")
+
+	switch {
+	case i.Min1() >= 5.0:
+		cl = colors.Scheme("degraded")
+	case i.Min1() >= 7.0:
+		cl = colors.Scheme("bad")
+	}
+
+	return outputs.
+		Pango(ic, spacer, dp).Color(cl)
+}
+
+// Temp ...
+func Temp(i unit.Temperature) bar.Output {
+	dp := pango.Textf(fmt.Sprintf("%.0f C", i.Celsius()))
+	ic := pango.Icon("material-memory")
+	cl := colors.Scheme("dim-icon")
+
 	return outputs.
 		Pango(ic, spacer, dp).Color(cl)
 }

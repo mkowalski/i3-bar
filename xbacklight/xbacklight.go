@@ -20,7 +20,7 @@ type Module struct {
 }
 
 func (*Module) get() int {
-	b, err := exec.Command("xbacklight").CombinedOutput()
+	b, err := exec.Command("light").CombinedOutput()
 	if err != nil {
 		return -10
 	}
@@ -72,9 +72,9 @@ func (m *Module) Stream(s bar.Sink) {
 func (m *Module) click(e bar.Event) {
 	switch e.Button {
 	case bar.ButtonLeft, bar.ScrollDown, bar.ScrollLeft, bar.ButtonBack:
-		exec.Command("xbacklight", "-dec", "1").Run()
+		exec.Command("light", "-U", "10").Run()
 	case bar.ButtonRight, bar.ScrollUp, bar.ScrollRight, bar.ButtonForward:
-		exec.Command("xbacklight", "-inc", "1").Run()
+		exec.Command("light", "-A", "10").Run()
 	}
 	m.level.Set(m.get())
 }
