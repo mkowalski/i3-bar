@@ -63,7 +63,7 @@ func Bat(i battery.Info) bar.Output {
 		return outputs.Textf("%v", i.Status).Urgent(true)
 	}
 
-	disp := pango.Textf("Bat: %d%%", i.RemainingPct())
+	disp := pango.Textf("%d%%", i.RemainingPct())
 	icon := pango.Icon("material-battery-std")
 	cl := colors.Scheme("dim-icon")
 
