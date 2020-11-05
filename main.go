@@ -31,6 +31,7 @@ func main() {
 	nt1 := netinfo.Interface("wlp2s0").Output(blocks.Net)
 	nt3 := netinfo.Interface("ppp0").Output(blocks.Net)
 	nt4 := netinfo.Interface("tun0").Output(blocks.Net)
+	nt5 := netinfo.Interface("wg0").Output(blocks.Net)
 	ti := clock.Local().Output(time.Second, blocks.Clock)
 
 	adapter, mac, _ := "hci0", "09:A5:C1:A6:5C:77", "bluez_sink.09_A5_C1_A6_5C_77.headset_head_unit"
@@ -38,7 +39,7 @@ func main() {
 	bl := bluetooth.DefaultAdapter().Output(blocks.Bluetooth)
 
 	panic(barista.Run(
-		blD, br, snd, bat, cpu, mem, wi, nt1, nt3, nt4, bl, ti,
+		blD, br, snd, bat, cpu, mem, wi, nt1, nt3, nt4, nt5, bl, ti,
 	))
 
 }
